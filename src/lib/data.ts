@@ -321,16 +321,35 @@ export function analyzeDomain(domain: string, salt = 0): Audit {
 
 const AGENT = "Alex Ryder";
 
+/* Translate a technical fault into words an everyday person gets. */
+function plainSpeak(id: string): string {
+  switch (id) {
+    case "hero": return "the big photo up top is way too heavy to download";
+    case "viewport": return "the site doesn't fit phone screens, so people have to pinch and zoom";
+    case "ssl": return "phones slap a \u201CNot Secure\u201D warning on your page before it even loads";
+    case "lcp": return "customers stare at a blank screen way too long before anything shows up";
+    case "blocking": return "the site does a pile of extra chores before it even appears";
+    case "compress": return "the files being sent are much bigger than they need to be";
+    case "cache": return "people who come back re-download the whole thing on every visit";
+    case "cls": return "the page jumps around while people try to tap the buttons";
+    case "dom": return "the page is built out of far too many moving pieces";
+    case "trackers": return "a swarm of ad trackers is slowing your page down";
+    case "lazy": return "pictures way down the page load before anyone even scrolls to them";
+    case "redirect": return "the site doesn't automatically use the secure address";
+    default: return "the site is loading slower than it should";
+  }
+}
+
 function topIssues(a: Audit): [string, string] {
-  const first = a.issues[0]?.label.toLowerCase() ?? "slow asset delivery";
-  const second = a.issues[1]?.label.toLowerCase() ?? "uncompressed media";
+  const first = plainSpeak(a.issues[0]?.id ?? "lcp");
+  const second = plainSpeak(a.issues[1]?.id ?? "compress");
   return [first, second];
 }
 
 export function generatePitch(a: Audit, domain: string, tone: Tone, variant: number): Pitch {
   const rnd = mulberry(hashSeed(domain + tone) ^ (variant * 7919));
   const owner = a.contact?.firstName ?? "there";
-  const { pi, lcp, cls } = a.metrics;
+  const { pi, lcp } = a.metrics;
   const [t1, t2] = topIssues(a);
   const loss = fmtMoney(a.lossMo);
   const co = a.company;
@@ -341,50 +360,50 @@ export function generatePitch(a: Audit, domain: string, tone: Tone, variant: num
 
   if (tone === "brutal") {
     if (variant % 2 === 0) {
-      subject = `${co} scored ${pi}/100 — here's the receipt`;
+      subject = `${co} is losing customers before the page even loads`;
       email =
-        `${owner}, I put ${domain} on a performance dyno this morning: ${pi}/100 on mobile, LCP at ${fmt1(lcp)}s — Google draws the red line at 2.5s, and ${t1} is the main reason you're over it. ` +
-        `Every extra second of load shaves ~7% off conversions, which at your traffic is about ${loss}/month quietly walking out the door. ` +
-        `I fix exactly this for a flat fee — reply "report" and I'll send the full teardown before your competitors read this email.`;
+        `${owner}, I opened ${domain} on a phone this morning and timed it — it takes ${fmt1(lcp)} seconds before customers see anything, and people start giving up after about two and a half. ` +
+        `The biggest reason is that ${t1}, and every one of those lost seconds pushes about ${loss} a month of buyers out your front door. ` +
+        `I fix exactly this for one flat price — reply \u201Creport\u201D and I\u2019ll show you what\u2019s wrong before your competitor does.`;
     } else {
-      subject = `Your homepage is costing you ${loss}/month`;
+      subject = `Your website is costing you about ${loss} a month`;
       email =
-        `${owner} — ${co} just pulled a ${pi}/100 on Google's own speed test, dragged down by ${t1} and ${t2}. ` +
-        `That's not a vanity metric: slow pages lose ~7% of buyers per second of delay, which is ≈${loss}/month at your traffic. ` +
-        `I'll fix it for a flat fee and show you before/after numbers — want the free 2-minute teardown first?`;
+        `${owner} — I ran ${domain} through Google\u2019s own speed test on a phone and it scored ${pi} out of 100, mostly because ${t1} — and on top of that, ${t2}. ` +
+        `Here\u2019s the simple math: when a page is slow, people tap the back button and buy from someone else — that\u2019s roughly ${loss} a month walking away. ` +
+        `I\u2019ll fix it for one flat price and show you the before-and-after — want me to send a free 2-minute video of what\u2019s wrong first?`;
     }
     script = [
-      `[0–5s] "Hi ${owner}, this is ${AGENT}. Twenty seconds, promise — I ran ${domain} through Google's own speed test this morning."`,
-      `[5–12s] "It scored ${pi} out of 100 on mobile. Big offender: ${t1}. First paint takes ${fmt1(lcp)} seconds — Google wants 2.5."`,
-      `[12–22s] "Rough math at your traffic, that delay bleeds about ${loss} a month in bounced buyers — and it drags your rankings with it."`,
-      `[22–28s] "I fix this for a flat fee. Can I send a 2-minute teardown video of your homepage?"`,
-      `[if no] "Fair enough — I'll email you the free report anyway. Sixty seconds to read. Sound fair?"`,
+      `[0\u20135s] \u201CHi ${owner}, this is ${AGENT}. Give me twenty seconds \u2014 I opened ${domain} on a phone this morning.\u201D`,
+      `[5\u201313s] \u201CIt takes ${fmt1(lcp)} seconds before anything shows up. People give up after about two and a half.\u201D`,
+      `[13\u201322s] \u201CSo customers tap the back button and buy somewhere else. At your size, that\u2019s about ${loss} a month walking away.\u201D`,
+      `[22\u201328s] \u201CI fix this for one flat price. Can I send you a short video of exactly what\u2019s slowing it down?\u201D`,
+      `[if no] \u201CNo worries \u2014 I\u2019ll email you the free report anyway. It takes one minute to read. Fair?\u201D`,
     ];
   } else if (tone === "roi") {
-    subject = `Quick math on ${domain}: ${loss}/month on the table`;
+    subject = `About ${loss} a month is slipping away from ${domain}`;
     email =
-      `Hi ${owner} — ran ${domain} through a full mobile performance audit: ${pi}/100, LCP ${fmt1(lcp)}s, layout shift ${fmt2(cls)}, with ${t1} as the biggest offender. ` +
-      `Industry data puts the cost of that delay at ~${loss}/month in lost conversions at your traffic level. ` +
-      `I fix this for a flat fee with measurable before/after numbers — open to a 15-minute walkthrough this week?`;
+      `Hi ${owner} — I tested ${domain} the way a customer on a phone would, and it scored ${pi} out of 100 for speed; the main problem is that ${t1}. ` +
+      `Slow pages quietly lose sales, and at your level of traffic that adds up to about ${loss} a month. ` +
+      `I fix this for one flat price and I\u2019ll show you the numbers before and after — free to talk for fifteen minutes this week?`;
     script = [
-      `[0–5s] "Hi ${owner}, it's ${AGENT}. I audit site performance for a living — do you have twenty seconds?"`,
-      `[5–14s] "${co} currently scores ${pi}/100 on mobile. The gap between that and 90+ is mostly ${t1}."`,
-      `[14–23s] "The math: at your traffic, that's roughly ${loss} a month in recoverable conversions. The fix is a one-time flat fee."`,
-      `[23–30s] "I'll send a one-page ROI breakdown with the numbers. What's the best email?"`,
-      `[if no] "No problem — I'll leave the audit link on your voicemail. It's free either way."`,
+      `[0\u20135s] \u201CHi ${owner}, it\u2019s ${AGENT}. I test websites for a living \u2014 got twenty seconds?\u201D`,
+      `[5\u201314s] \u201C${co}\u2019s site scores ${pi} out of 100 on phones. The biggest thing holding it back is that ${t1}.\u201D`,
+      `[14\u201323s] \u201CThe simple math: at your traffic, that slowness costs about ${loss} a month in lost sales. The fix is one flat price.\u201D`,
+      `[23\u201330s] \u201CI\u2019ll send a one-page summary with the numbers. What\u2019s the best email for you?\u201D`,
+      `[if no] \u201CNo problem \u2014 I\u2019ll leave the free report on your voicemail. It\u2019s yours either way.\u201D`,
     ];
   } else {
-    subject = `A free speed report for ${co}`;
+    subject = `A free speed check-up for ${co}`;
     email =
-      `Hi ${owner} — I run website performance audits and ${domain} caught my eye: it's scoring ${pi}/100 on mobile, mostly because of ${t1}. ` +
-      `Fixes like this usually pay for themselves within weeks — every second of load time is worth ~7% of conversions (≈${loss}/month here). ` +
-      `Happy to send the full report and talk it through, no strings — want a look?`;
+      `Hi ${owner} — I check website speed for a living, and ${domain} caught my eye: it scores ${pi} out of 100 on phones, mostly because ${t1}. ` +
+      `Speed-ups like this usually pay for themselves fast — a quicker page means fewer people give up, and here that\u2019s worth about ${loss} a month. ` +
+      `I\u2019m happy to send the full report and walk you through it, no pressure at all — want a look?`;
     script = [
-      `[0–5s] "Hi ${owner}, this is ${AGENT} — not selling anything in the first minute, promise."`,
-      `[5–14s] "I ran ${domain} through a speed test this morning and it came back at ${pi}/100 on phones — ${t1} is the main culprit."`,
-      `[14–24s] "Most sites like yours recover around ${loss} a month once that's fixed. I do the fixes for a flat fee."`,
-      `[24–30s] "Either way the full report is free — where should I send it?"`,
-      `[if no] "Totally fine. I'll drop the link in an email and you can peek when it suits you."`,
+      `[0\u20135s] \u201CHi ${owner}, this is ${AGENT} \u2014 not selling you anything in the first minute, promise.\u201D`,
+      `[5\u201314s] \u201CI tested ${domain} on a phone this morning and it came back at ${pi} out of 100 \u2014 ${t1} is the main thing slowing it down.\u201D`,
+      `[14\u201324s] \u201CMost sites like yours get back around ${loss} a month once that\u2019s fixed. I do the fix for one flat price.\u201D`,
+      `[24\u201330s] \u201CThe full report is free either way \u2014 where should I send it?\u201D`,
+      `[if no] \u201CTotally fine. I\u2019ll drop the link in an email and you can peek whenever suits you.\u201D`,
     ];
   }
 

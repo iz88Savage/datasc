@@ -162,6 +162,7 @@ export function stageLogs(stage: StageKey, r: DynoRecord, rnd: () => number): st
       const p = r.pitch;
       return [
         `model gpt-4o · temp 0.7 · tone=${p?.tone ?? "brutal"}`,
+        `directive: plain english · no jargon · everyday reader`,
         `cold email: 3 sentences · subject A/B armed`,
         `call script: 30s · ${p ? p.script.length : 5} beats`,
         `tokens billed: ${p?.tokens ?? 0}`,
