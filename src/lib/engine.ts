@@ -18,6 +18,19 @@ export interface LogLine {
   line: string;
 }
 
+export interface SweepSource {
+  zip: string;
+  city: string;
+  st: string;
+  name: string;
+  category: string;
+  niche: string;
+  phone: string;
+  address: string;
+  rating: number;
+  reviews: number;
+}
+
 export interface DynoRecord {
   id: string;
   domain: string;
@@ -32,6 +45,7 @@ export interface DynoRecord {
   contact: Contact | null; // may be nulled at runtime (credits / no match)
   pitch?: Pitch;
   liveTelemetry?: boolean;
+  source?: SweepSource;    // came from a ZIP sweep
   createdAt: number;
   finishedAt?: number;
 }
@@ -286,7 +300,8 @@ export function saveState(state: PersistedState) {
 /* ---------------- misc ---------------- */
 
 export function reflashPitch(r: DynoRecord, tone: Pitch["tone"], variant: number): Pitch {
-  return generatePitch(r.audit, r.domain, tone, variant);
+  const local = r.source ? { city: r.source.city, niche: r.source.niche } : null;
+  return generatePitch(r.audit, r.domain, tone, variant, local);
 }
 
 export const hexRay = (rnd: () => number) =>

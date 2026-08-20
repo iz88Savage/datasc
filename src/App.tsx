@@ -4,7 +4,7 @@ import {
   createRecord, normalizeUrl, stageLogs, tryLivePSI, loadState, saveState,
   downloadCSV, hexRay, sleep,
 } from "./lib/engine";
-import { TIPS, generatePitch, Tone } from "./lib/data";
+import { TIPS, generatePitch, Tone, zipInfo, generateProspects, Prospect } from "./lib/data";
 import ConsoleDeck, { EnqueueResult } from "./components/Console";
 import Board from "./components/Board";
 import SettingsModal from "./components/SettingsModal";
@@ -44,6 +44,102 @@ export default function App() {
     const t = setInterval(() => setTipIdx((i) => (i + 1) % TIPS.length), 6000);
     return () => clearInterval(t);
   }, []);
+
+  /* ---------- ZIP sweep state ---------- */
+  const [sweepState, setSweepState] = useState<"idle" | "running" | "done" | "failed">("idle");
+  const [sweepLogs, setSweepLogs] = useState<{ id: number; line: string }[]>([]);
+  const [sweepProgress, setSweepProgress] = useState(0);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sweepArea, setSweepArea] = useState<string | null>(null);
+  const sweepCancelRef = useRef(false);
+
+  const slog = (line: string) =>
+    setSweepLogs((ls) => [...ls.slice(-40), { id: Date.now() + Math.random(), line }]);
+
+  const runSweep = async (zip: string) => {
+    if (sweepState === "running") return;
+    sweepCancelRef.current = false;
+    setSweepState("running");
+    setSweepLogs([]);
+    setProspects([]);
+    setSelectedIds(new Set());
+    setSweepProgress(0);
+
+    const info = zipInfo(zip);
+    setSweepArea(`${info.city}, ${info.st}`);
+    const found = generateProspects(zip);
+    const total = found.length + 5 + Math.floor(Math.random() * 9);
+
+    let cancelled = false;
+    const step = async (ms: number, line: string, prog: number) => {
+      await sleep(ms);
+      if (sweepCancelRef.current) {
+        cancelled = true;
+        return;
+      }
+      slog(line);
+      setSweepProgress(prog);
+    };
+
+    await step(480, `resolving ${zip} → ${info.city}, ${info.st} · area code ${info.area}`, 0.08);
+    if (!cancelled) await step(640, `directory trawl started · maps.local/${zip} @ human pace (1 req / 1.4s)`, 0.18);
+    if (!cancelled) await step(720, `page 1 · ${Math.ceil(total / 2)} listings scraped · extracting website fields`, 0.38);
+    if (!cancelled) await step(720, `page 2 · ${total} listings total · ${total - found.length} have no website (skipped)`, 0.58);
+    if (!cancelled) await step(560, `filter passed: ${found.length} local businesses expose a root domain`, 0.78);
+    if (!cancelled) await step(460, `dedupe + normalize · staging prospects`, 0.92);
+    if (!cancelled) {
+      await step(380, `sweep complete — ${found.length} prospects staged for the dyno`, 1);
+      setProspects(found);
+      setSelectedIds(new Set(found.map((p) => p.id)));
+      setSweepState("done");
+      return;
+    }
+    slog("!! sweep aborted by operator — directory session dropped");
+    setSweepState("failed");
+  };
+
+  const cancelSweep = () => {
+    sweepCancelRef.current = true;
+  };
+
+  const enqueueProspects = () => {
+    const picked = prospects.filter((p) => selectedIds.has(p.id));
+    if (!picked.length) {
+      pushToast("error", "Tick at least one prospect first.");
+      return;
+    }
+    const known = new Set(recordsRef.current.map((r) => r.domain));
+    let dupes = 0;
+    const created: DynoRecord[] = [];
+    for (const p of picked) {
+      if (known.has(p.domain)) {
+        dupes++;
+        continue;
+      }
+      known.add(p.domain);
+      const rec = createRecord(p.domain);
+      rec.source = {
+        zip: p.zip, city: p.city, st: p.st, name: p.name, category: p.category,
+        niche: p.niche, phone: p.phone, address: p.address, rating: p.rating, reviews: p.reviews,
+      };
+      created.push(rec);
+    }
+    if (created.length) {
+      queueRef.current.push(...created.map((c) => c.id));
+      commit((rs) => [...created, ...rs]);
+      pump();
+    }
+    if (created.length) {
+      pushToast(
+        "info",
+        `${created.length} local site${created.length > 1 ? "s" : ""} queued from ${sweepArea ?? "the sweep"}${dupes ? ` · ${dupes} already on the board` : ""}`,
+      );
+    } else {
+      pushToast("error", "Every picked site is already on the board.");
+    }
+    setSelectedIds(new Set());
+  };
 
   /* ---------- state helpers (ref-synced) ---------- */
   const commit = (updater: (rs: DynoRecord[]) => DynoRecord[]) => {
@@ -125,7 +221,8 @@ export default function App() {
 
       // ECU flash — draft the pitch before logging it
       if (s.key === "pitch" && !cur.pitch) {
-        const pitch = generatePitch(cur.audit, cur.domain, "brutal", 0);
+        const local = cur.source ? { city: cur.source.city, niche: cur.source.niche } : null;
+        const pitch = generatePitch(cur.audit, cur.domain, "brutal", 0, local);
         cur = { ...cur, pitch };
         patch(id, { pitch });
       }
@@ -226,7 +323,8 @@ export default function App() {
     const r = recordsRef.current.find((x) => x.id === id);
     if (!r) return;
     const variant = (r.pitch?.variant ?? -1) + 1;
-    const pitch = generatePitch(r.audit, r.domain, tone, variant);
+    const local = r.source ? { city: r.source.city, niche: r.source.niche } : null;
+    const pitch = generatePitch(r.audit, r.domain, tone, variant, local);
     patch(id, { pitch });
     bump((m) => ({ ...m, tokens: m.tokens + pitch.tokens }));
     pushToast("success", `ECU reflashed — ${tone.toUpperCase()} tune loaded (+${pitch.tokens} tok)`);
@@ -371,6 +469,28 @@ export default function App() {
           onAbort={abort}
           stats={stats}
           boardEmpty={records.length === 0}
+          sweep={{
+            state: sweepState,
+            logs: sweepLogs,
+            progress: sweepProgress,
+            prospects,
+            selected: selectedIds,
+            area: sweepArea,
+            onRun: runSweep,
+            onCancel: cancelSweep,
+            onToggle: (id) =>
+              setSelectedIds((s) => {
+                const n = new Set(s);
+                if (n.has(id)) n.delete(id);
+                else n.add(id);
+                return n;
+              }),
+            onToggleAll: () =>
+              setSelectedIds((s) =>
+                s.size === prospects.length ? new Set() : new Set(prospects.map((p) => p.id)),
+              ),
+            onEnqueue: enqueueProspects,
+          }}
         />
 
         <Board

@@ -346,13 +346,21 @@ function topIssues(a: Audit): [string, string] {
   return [first, second];
 }
 
-export function generatePitch(a: Audit, domain: string, tone: Tone, variant: number): Pitch {
+export function generatePitch(
+  a: Audit,
+  domain: string,
+  tone: Tone,
+  variant: number,
+  local?: { city: string; niche: string } | null,
+): Pitch {
   const rnd = mulberry(hashSeed(domain + tone) ^ (variant * 7919));
   const owner = a.contact?.firstName ?? "there";
   const { pi, lcp } = a.metrics;
   const [t1, t2] = topIssues(a);
   const loss = fmtMoney(a.lossMo);
   const co = a.company;
+  const city = local?.city ?? null;
+  const niche = local?.niche ?? null;
 
   let subject = "";
   let email = "";
@@ -360,35 +368,39 @@ export function generatePitch(a: Audit, domain: string, tone: Tone, variant: num
 
   if (tone === "brutal") {
     if (variant % 2 === 0) {
-      subject = `${co} is losing customers before the page even loads`;
+      subject = city
+        ? `${co} is losing ${city} customers before the page even loads`
+        : `${co} is losing customers before the page even loads`;
       email =
         `${owner}, I opened ${domain} on a phone this morning and timed it — it takes ${fmt1(lcp)} seconds before customers see anything, and people start giving up after about two and a half. ` +
-        `The biggest reason is that ${t1}, and every one of those lost seconds pushes about ${loss} a month of buyers out your front door. ` +
+        `The biggest reason is that ${t1}, and every one of those lost seconds pushes about ${loss} a month of buyers out your front door${city && niche ? ` — real ${city} folks searching for ${niche} hit this page every day` : ""}. ` +
         `I fix exactly this for one flat price — reply \u201Creport\u201D and I\u2019ll show you what\u2019s wrong before your competitor does.`;
     } else {
       subject = `Your website is costing you about ${loss} a month`;
       email =
         `${owner} — I ran ${domain} through Google\u2019s own speed test on a phone and it scored ${pi} out of 100, mostly because ${t1} — and on top of that, ${t2}. ` +
-        `Here\u2019s the simple math: when a page is slow, people tap the back button and buy from someone else — that\u2019s roughly ${loss} a month walking away. ` +
+        `Here\u2019s the simple math: when a page is slow, people tap the back button and buy from someone else — that\u2019s roughly ${loss} a month walking away${city && niche ? `, and it\u2019s happening to ${city} customers looking for ${niche} right now` : ""}. ` +
         `I\u2019ll fix it for one flat price and show you the before-and-after — want me to send a free 2-minute video of what\u2019s wrong first?`;
     }
     script = [
       `[0\u20135s] \u201CHi ${owner}, this is ${AGENT}. Give me twenty seconds \u2014 I opened ${domain} on a phone this morning.\u201D`,
       `[5\u201313s] \u201CIt takes ${fmt1(lcp)} seconds before anything shows up. People give up after about two and a half.\u201D`,
-      `[13\u201322s] \u201CSo customers tap the back button and buy somewhere else. At your size, that\u2019s about ${loss} a month walking away.\u201D`,
+      `[13\u201322s] \u201CSo customers tap the back button and buy somewhere else. At your size, that\u2019s about ${loss} a month walking away${city ? ` — folks in ${city} looking for ${niche}` : ""}.\u201D`,
       `[22\u201328s] \u201CI fix this for one flat price. Can I send you a short video of exactly what\u2019s slowing it down?\u201D`,
       `[if no] \u201CNo worries \u2014 I\u2019ll email you the free report anyway. It takes one minute to read. Fair?\u201D`,
     ];
   } else if (tone === "roi") {
-    subject = `About ${loss} a month is slipping away from ${domain}`;
+    subject = city
+      ? `About ${loss} a month is slipping away in ${city}`
+      : `About ${loss} a month is slipping away from ${domain}`;
     email =
       `Hi ${owner} — I tested ${domain} the way a customer on a phone would, and it scored ${pi} out of 100 for speed; the main problem is that ${t1}. ` +
-      `Slow pages quietly lose sales, and at your level of traffic that adds up to about ${loss} a month. ` +
+      `Slow pages quietly lose sales, and at your level of traffic that adds up to about ${loss} a month${city && niche ? ` — real people in ${city} picking the next ${niche} down the list` : ""}. ` +
       `I fix this for one flat price and I\u2019ll show you the numbers before and after — free to talk for fifteen minutes this week?`;
     script = [
       `[0\u20135s] \u201CHi ${owner}, it\u2019s ${AGENT}. I test websites for a living \u2014 got twenty seconds?\u201D`,
       `[5\u201314s] \u201C${co}\u2019s site scores ${pi} out of 100 on phones. The biggest thing holding it back is that ${t1}.\u201D`,
-      `[14\u201323s] \u201CThe simple math: at your traffic, that slowness costs about ${loss} a month in lost sales. The fix is one flat price.\u201D`,
+      `[14\u201323s] \u201CThe simple math: at your traffic, that slowness costs about ${loss} a month in lost sales${city ? ` \u2014 right there in ${city}` : ""}. The fix is one flat price.\u201D`,
       `[23\u201330s] \u201CI\u2019ll send a one-page summary with the numbers. What\u2019s the best email for you?\u201D`,
       `[if no] \u201CNo problem \u2014 I\u2019ll leave the free report on your voicemail. It\u2019s yours either way.\u201D`,
     ];
@@ -396,7 +408,7 @@ export function generatePitch(a: Audit, domain: string, tone: Tone, variant: num
     subject = `A free speed check-up for ${co}`;
     email =
       `Hi ${owner} — I check website speed for a living, and ${domain} caught my eye: it scores ${pi} out of 100 on phones, mostly because ${t1}. ` +
-      `Speed-ups like this usually pay for themselves fast — a quicker page means fewer people give up, and here that\u2019s worth about ${loss} a month. ` +
+      `Speed-ups like this usually pay for themselves fast — a quicker page means fewer people give up, and here that\u2019s worth about ${loss} a month${city && niche ? ` \u2014 and it\u2019s the ${city} crowd looking for ${niche} who walk away` : ""}. ` +
       `I\u2019m happy to send the full report and walk you through it, no pressure at all — want a look?`;
     script = [
       `[0\u20135s] \u201CHi ${owner}, this is ${AGENT} \u2014 not selling you anything in the first minute, promise.\u201D`,
@@ -430,4 +442,205 @@ export const TIPS = [
   "PROXY ROTATION BEATS IP BANS WHEN YOU REDLINE",
   "A 1s LCP FIX ≈ 7% MORE CONVERSIONS — SELL THE DELTA",
   "NEVER PITCH INFO@ — THE OWNER'S DIRECT INBOX CLOSES 3× COLDER",
+  "ZIP SWEEPS FIND SLOW LOCAL SITES — 3-STAR REVIEWS + SLOW PAGE = EASY WIN",
+  "DIRECTORY SCRAPES GET CAPTCHA'D FAST — SWEEP AT HUMAN PACE ONLY",
 ];
+
+/* ============================================================
+   ZIP SWEEP — local listing trawl, deterministic per ZIP
+   ============================================================ */
+
+export interface ZipInfo {
+  zip: string;
+  city: string;
+  st: string;
+  area: string;
+  known: boolean;
+}
+
+/* real ZIP → city / state / area-code table (subset) */
+const ZIP_MAP: Record<string, [string, string, string]> = {
+  "02101": ["Boston", "MA", "617"], "02901": ["Providence", "RI", "401"],
+  "03301": ["Concord", "NH", "603"], "04101": ["Portland", "ME", "207"],
+  "05401": ["Burlington", "VT", "802"], "06510": ["New Haven", "CT", "203"],
+  "07030": ["Hoboken", "NJ", "201"], "10001": ["New York", "NY", "212"],
+  "11201": ["Brooklyn", "NY", "718"], "13201": ["Syracuse", "NY", "315"],
+  "14601": ["Rochester", "NY", "585"], "19103": ["Philadelphia", "PA", "215"],
+  "20001": ["Washington", "DC", "202"], "21401": ["Annapolis", "MD", "410"],
+  "23219": ["Richmond", "VA", "804"], "24011": ["Roanoke", "VA", "540"],
+  "27601": ["Raleigh", "NC", "919"], "28202": ["Charlotte", "NC", "704"],
+  "29401": ["Charleston", "SC", "843"], "30301": ["Atlanta", "GA", "404"],
+  "32301": ["Tallahassee", "FL", "850"], "32801": ["Orlando", "FL", "407"],
+  "33101": ["Miami", "FL", "305"], "33401": ["West Palm Beach", "FL", "561"],
+  "33601": ["Tampa", "FL", "813"], "35201": ["Birmingham", "AL", "205"],
+  "36101": ["Montgomery", "AL", "334"], "37201": ["Nashville", "TN", "615"],
+  "39201": ["Jackson", "MS", "601"], "40201": ["Louisville", "KY", "502"],
+  "43215": ["Columbus", "OH", "614"], "46201": ["Indianapolis", "IN", "317"],
+  "48201": ["Detroit", "MI", "313"], "50309": ["Des Moines", "IA", "515"],
+  "53201": ["Milwaukee", "WI", "414"], "53701": ["Madison", "WI", "608"],
+  "55401": ["Minneapolis", "MN", "612"], "57701": ["Rapid City", "SD", "605"],
+  "58501": ["Bismarck", "ND", "701"], "60601": ["Chicago", "IL", "312"],
+  "63101": ["St. Louis", "MO", "314"], "66101": ["Kansas City", "KS", "913"],
+  "68101": ["Omaha", "NE", "402"], "70112": ["New Orleans", "LA", "504"],
+  "72201": ["Little Rock", "AR", "501"], "73301": ["Austin", "TX", "512"],
+  "75201": ["Dallas", "TX", "214"], "77002": ["Houston", "TX", "713"],
+  "78701": ["Austin", "TX", "512"], "80202": ["Denver", "CO", "303"],
+  "82001": ["Cheyenne", "WY", "307"], "83701": ["Boise", "ID", "208"],
+  "84101": ["Salt Lake City", "UT", "801"], "85001": ["Phoenix", "AZ", "602"],
+  "85251": ["Scottsdale", "AZ", "480"], "87501": ["Santa Fe", "NM", "505"],
+  "89101": ["Las Vegas", "NV", "702"], "89501": ["Reno", "NV", "775"],
+  "90210": ["Beverly Hills", "CA", "310"], "92101": ["San Diego", "CA", "619"],
+  "93101": ["Santa Barbara", "CA", "805"], "93301": ["Bakersfield", "CA", "661"],
+  "93701": ["Fresno", "CA", "559"], "94103": ["San Francisco", "CA", "415"],
+  "95401": ["Santa Rosa", "CA", "707"], "95814": ["Sacramento", "CA", "916"],
+  "96801": ["Honolulu", "HI", "808"], "97201": ["Portland", "OR", "503"],
+  "98101": ["Seattle", "WA", "206"], "99501": ["Anchorage", "AK", "907"],
+};
+
+const FALLBACK_CITIES: [string, string][] = [
+  ["Fairview", "OH"], ["Riverton", "UT"], ["Oakdale", "MN"], ["Cedar Falls", "IA"],
+  ["Maplewood", "MO"], ["Brookfield", "WI"], ["Willow Creek", "MT"], ["Harbor Point", "MI"],
+  ["Pine Ridge", "NC"], ["Summit Park", "CO"], ["Lakemont", "GA"], ["Fox Hollow", "KY"],
+  ["Elk Grove", "WA"], ["Dusty Mesa", "AZ"], ["Birch Landing", "VT"], ["Quarry Falls", "PA"],
+];
+const FALLBACK_AREAS = ["216", "330", "405", "419", "479", "541", "573", "618", "660", "715", "740", "812", "816", "859", "910", "931"];
+
+export function zipInfo(zip: string): ZipInfo {
+  const hit = ZIP_MAP[zip];
+  if (hit) return { zip, city: hit[0], st: hit[1], area: hit[2], known: true };
+  const h = hashSeed("zip:" + zip);
+  const c = FALLBACK_CITIES[h % FALLBACK_CITIES.length];
+  return { zip, city: c[0], st: c[1], area: FALLBACK_AREAS[(h >>> 8) % FALLBACK_AREAS.length], known: false };
+}
+
+export interface Prospect {
+  id: string;
+  name: string;
+  category: string;   // key
+  niche: string;      // "a roofer"
+  domain: string;
+  owner: string;
+  address: string;
+  phone: string;
+  rating: number;
+  reviews: number;
+  city: string;
+  st: string;
+  zip: string;
+}
+
+const SWEEP_CATS: Record<string, { niche: string; names: string[] }> = {
+  roofing: {
+    niche: "a roofer",
+    names: ["{C} Roofing Co.", "{P} Roofing & Exteriors", "{S} Storm Guard Roofing", "{C} Roof Pros"],
+  },
+  hvac: {
+    niche: "an AC & heating company",
+    names: ["{C} Air & Heat", "{P} Heating & Cooling", "{C} Climate Control", "True North HVAC {C}"],
+  },
+  dental: {
+    niche: "a dentist",
+    names: ["{C} Family Dental", "Bright Smile {C}", "{P} Dental Studio", "Dr. {L} Dental Care"],
+  },
+  plumber: {
+    niche: "a plumber",
+    names: ["{C} Plumbing Pros", "Flow Right Plumbing", "{P} Rooter & Drain", "{C} 24/7 Plumbing"],
+  },
+  law: {
+    niche: "a lawyer",
+    names: ["{L} & Associates", "{C} Injury Law", "{L} Law Group", "Justice First {C}"],
+  },
+  cafe: {
+    niche: "a café",
+    names: ["Driftwood Coffee {C}", "{C} Bean Counter", "Morning Ritual Café", "{P} Grounds & Bakery"],
+  },
+  gym: {
+    niche: "a gym",
+    names: ["{C} Iron Works Gym", "Forge Fitness {C}", "{P} Strength Club", "Rep One Training {C}"],
+  },
+  salon: {
+    niche: "a salon",
+    names: ["{C} Shear Studio", "Velvet & Vine Salon", "{P} Hair Collective", "The Mane Event {C}"],
+  },
+  auto: {
+    niche: "an auto repair shop",
+    names: ["{C} Auto Care", "Torque & Tread Garage", "{P} Motor Works", "Honest Wrench Auto {C}"],
+  },
+  pizza: {
+    niche: "a pizza place",
+    names: ["{C} Brick Oven Pizza", "Ember & Crust", "{P} Pie Company", "Nonna's Slice {C}"],
+  },
+  realestate: {
+    niche: "a real estate agent",
+    names: ["{C} Realty Group", "{L} Homes {C}", "Keystone Realty {C}", "{P} Property Partners"],
+  },
+  landscaping: {
+    niche: "a landscaping crew",
+    names: ["{C} Groundskeeping", "GreenLine Lawn & Landscape", "{P} Turf Co.", "Rooted Landscapes {C}"],
+  },
+  vet: {
+    niche: "a vet",
+    names: ["{C} Animal Hospital", "Paws & Claws Vet {C}", "{P} Pet Clinic", "Wagging Tail Vet {C}"],
+  },
+  bakery: {
+    niche: "a bakery",
+    names: ["{C} Crumb & Co.", "Golden Hour Bakehouse", "{P} Bread Works", "Butter & Rye {C}"],
+  },
+};
+
+const SWEEP_PREFIXES = ["Summit", "Premier", "Bluebonnet", "Copper", "Lone Star", "Harbor", "Redwood", "Prairie", "Granite", "Crescent"];
+const SWEEP_STREETS = ["Main St", "Oak Ave", "Pecan St", "1st Ave", "Market St", "Commerce Blvd", "Elm St", "Riverside Dr", "Church St", "Sunset Blvd", "Industrial Way", "Maple Dr"];
+
+const slug = (s: string) =>
+  s.toLowerCase().replace(/dr\.|&|'/g, "").replace(/[^a-z0-9]+/g, "").slice(0, 22);
+
+export function generateProspects(zip: string): Prospect[] {
+  const info = zipInfo(zip);
+  const rnd = mulberry(hashSeed("sweep:" + zip));
+  const cityWord = info.city.split(" ")[0];
+
+  const catKeys = Object.keys(SWEEP_CATS)
+    .map((k) => [k, rnd()] as const)
+    .sort((a, b) => a[1] - b[1])
+    .map(([k]) => k);
+  const count = 7 + Math.floor(rnd() * 6); // 7–12 listings
+
+  const used = new Set<string>();
+  const out: Prospect[] = [];
+  for (let i = 0; i < count; i++) {
+    const catKey = catKeys[i % catKeys.length];
+    const cat = SWEEP_CATS[catKey];
+    const template = cat.names[Math.floor(rnd() * cat.names.length)];
+    const last = LAST[Math.floor(rnd() * LAST.length)];
+    const name = template
+      .replace("{C}", cityWord)
+      .replace("{P}", SWEEP_PREFIXES[Math.floor(rnd() * SWEEP_PREFIXES.length)])
+      .replace("{S}", info.st)
+      .replace("{L}", last);
+
+    let domain = slug(name);
+    if (used.has(domain)) domain += info.st.toLowerCase();
+    if (used.has(domain)) domain += String(i);
+    used.add(domain);
+    const tld = [".com", ".com", ".com", ".net", ".co", ".us"][Math.floor(rnd() * 6)];
+    domain += tld;
+
+    const first = FIRST[Math.floor(rnd() * FIRST.length)];
+    out.push({
+      id: `${zip}-${domain}`,
+      name,
+      category: catKey,
+      niche: cat.niche,
+      domain,
+      owner: `${first} ${last}`,
+      address: `${100 + Math.floor(rnd() * 4700)} ${SWEEP_STREETS[Math.floor(rnd() * SWEEP_STREETS.length)]}, ${info.city}, ${info.st} ${zip}`,
+      phone: `(${info.area}) ${200 + Math.floor(rnd() * 700)}-${1000 + Math.floor(rnd() * 9000)}`,
+      rating: +(3.1 + rnd() * 1.8).toFixed(1),
+      reviews: 8 + Math.floor(rnd() * 470),
+      city: info.city,
+      st: info.st,
+      zip,
+    });
+  }
+  return out;
+}

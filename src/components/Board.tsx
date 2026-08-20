@@ -103,6 +103,8 @@ export default function Board({
       return (
         r.domain.includes(q) ||
         r.company.toLowerCase().includes(q) ||
+        (r.source?.name.toLowerCase().includes(q) ?? false) ||
+        (r.source?.zip.includes(q) ?? false) ||
         (r.contact?.name.toLowerCase().includes(q) ?? false) ||
         (r.contact?.email.includes(q) ?? false)
       );
@@ -279,8 +281,20 @@ function Row({
           <div className="flex items-center gap-2.5">
             <SiteMark domain={r.domain} />
             <div className="min-w-0">
-              <div className="truncate font-semibold leading-tight text-ink">{r.domain}</div>
-              <div className="truncate font-mono text-[10px] text-dim">{r.company}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-semibold leading-tight text-ink">{r.domain}</span>
+                {r.source && (
+                  <span
+                    className="flex-none border border-cyan/40 bg-cyan/10 px-1 py-px font-mono text-[8.5px] tracking-[0.12em] text-cyan"
+                    title={`Found via ZIP sweep — ${r.source.address}`}
+                  >
+                    ZIP {r.source.zip}
+                  </span>
+                )}
+              </div>
+              <div className="truncate font-mono text-[10px] text-dim">
+                {r.source ? r.source.name : r.company}
+              </div>
             </div>
           </div>
         </td>
@@ -463,7 +477,20 @@ function Drawer({
   ];
 
   return (
-    <div className="logline grid gap-5 border-t border-dashed border-line px-6 py-5 lg:grid-cols-[280px_1fr_1.25fr]">
+    <>
+      {r.source && (
+        <div className="logline flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line bg-cyan/[0.05] px-6 py-2.5">
+          <span className="font-display text-[11px] font-semibold tracking-[0.2em] text-cyan">
+            LOCAL LISTING <span className="text-dim">//</span> {r.source.name.toUpperCase()}
+          </span>
+          <span className="font-mono text-[10px] text-mute">{r.source.address}</span>
+          <span className="font-mono text-[10px] text-mute">{r.source.phone}</span>
+          <span className="ml-auto font-mono text-[10px] text-amber">
+            ★ {r.source.rating.toFixed(1)} <span className="text-dim">· {r.source.reviews} reviews · swept from {r.source.zip}</span>
+          </span>
+        </div>
+      )}
+      <div className="logline grid gap-5 border-t border-dashed border-line px-6 py-5 lg:grid-cols-[280px_1fr_1.25fr]">
       {/* -------- telemetry -------- */}
       <div>
         <div className="flex items-baseline gap-3">
@@ -620,7 +647,8 @@ function Drawer({
           <IconChevron size={12} className="rotate-180" /> COLLAPSE
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -632,8 +660,9 @@ function EmptyGarage() {
       </div>
       <div className="font-display text-base font-bold tracking-[0.2em] text-mute">GARAGE EMPTY</div>
       <p className="max-w-md font-mono text-[11px] leading-relaxed text-dim">
-        Nothing on the rollers yet. Drop a domain in the intake above — or hit a cold-start sample —
-        and the rig will pull telemetry, map the owner, and flash a pitch in about eight seconds.
+        Nothing on the rollers yet. Drop a domain in the intake above, hit a cold-start sample,
+        or flip the intake to ZIP SWEEP and let the rig trawl a whole area code for slow local
+        sites — then it pulls telemetry, maps the owner, and flashes a pitch in about eight seconds.
       </p>
     </div>
   );
